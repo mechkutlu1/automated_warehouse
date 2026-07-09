@@ -1,0 +1,852 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>MADRL Warehouse Lab — Multi-Agent RL for Sustainable Warehouses</title>
+<meta name="description" content="Companion app for 'Development of an automated robot-assisted sustainable warehouse system through multi-agent deep reinforcement learning algorithms': live AGV fleet simulation, in-browser multi-agent Q-learning, and algorithm benchmarking on completion time, throughput, collisions and energy.">
+<meta name="theme-color" content="#10202e">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#10202e;
+  --ink-soft:#3d5165;
+  --bench:#e9eef3;
+  --panel:#ffffff;
+  --line:#ccd7e0;
+  --air:#0e7ab8;
+  --amber:#c96a10;          /* logistics amber */
+  --shelf:#8a6a3c;
+  --agv:#0e7ab8;
+  --ok:#1e7d4f;
+  --danger:#b3231f;
+  --charge:#5b3f8f;
+  --mono:'IBM Plex Mono',ui-monospace,monospace;
+  --disp:'Space Grotesk',sans-serif;
+  --body:'Inter',system-ui,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
+body{
+  font-family:var(--body);background:var(--bench);color:var(--ink);min-height:100vh;
+  background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);
+  background-size:32px 32px;background-position:-1px -1px;
+}
+header{
+  background:var(--ink);color:#e8f0f7;padding:14px 20px 12px;
+  display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;border-bottom:3px solid var(--amber);
+}
+header h1{font-family:var(--disp);font-size:clamp(1.0rem,2.6vw,1.42rem);font-weight:700}
+header h1 .id{color:#e5aa63;font-weight:500}
+header .sub{font-family:var(--mono);font-size:.64rem;letter-spacing:.05em;color:#8fa8bd;text-transform:uppercase}
+nav.tabs{display:flex;background:var(--ink);padding:0 20px;overflow-x:auto;scrollbar-width:none}
+nav.tabs::-webkit-scrollbar{display:none}
+nav.tabs button{
+  appearance:none;border:none;background:none;cursor:pointer;font-family:var(--disp);
+  font-size:.85rem;font-weight:600;color:#8fa8bd;padding:10px 15px 12px;
+  border-bottom:3px solid transparent;white-space:nowrap;
+}
+nav.tabs button[aria-selected="true"]{color:#fff;border-bottom-color:var(--amber)}
+nav.tabs button:focus-visible{outline:2px solid var(--amber);outline-offset:-2px}
+main{max-width:1200px;margin:0 auto;padding:18px 16px 60px}
+.tabpane{display:none}
+.tabpane.active{display:block}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:0 1px 3px rgba(16,32,46,.07);padding:16px}
+.card h2{
+  font-family:var(--disp);font-size:.78rem;font-weight:700;text-transform:uppercase;
+  letter-spacing:.1em;color:var(--ink-soft);margin-bottom:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+}
+.card h2::after{content:"";flex:1;height:1px;background:var(--line)}
+.btn{
+  appearance:none;border:1.5px solid var(--ink);background:#fff;color:var(--ink);cursor:pointer;
+  font-family:var(--disp);font-weight:600;font-size:.85rem;padding:8px 16px;border-radius:7px;
+}
+.btn:hover{background:#f0f5f9}
+.btn.primary{background:var(--ink);color:#fff}
+.btn.primary:hover{background:#1d3348}
+.btn.amber{background:var(--amber);border-color:var(--amber);color:#fff}
+.btn.amber:hover{background:#a85708}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn:focus-visible{outline:2px solid var(--air);outline-offset:2px}
+.badge{display:inline-block;font-family:var(--mono);font-size:.6rem;letter-spacing:.06em;padding:2px 8px;border-radius:99px;text-transform:uppercase}
+.badge.ok{background:#e2f2e9;color:var(--ok)}
+.badge.warn{background:#fbecd9;color:var(--amber)}
+.badge.info{background:#e3edf7;color:var(--air)}
+
+/* floor tab */
+.floor-grid{display:grid;grid-template-columns:300px 1fr;gap:16px}
+@media(max-width:920px){.floor-grid{grid-template-columns:1fr}}
+.ctl-label{font-family:var(--mono);font-size:.66rem;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-soft);margin-bottom:6px;display:block}
+.ctl-group{margin-bottom:16px}
+select,input[type=number]{
+  width:100%;padding:9px 10px;border:1.5px solid var(--ink);border-radius:7px;
+  font-family:var(--disp);font-weight:600;font-size:.86rem;background:#fff;color:var(--ink);
+}
+.seg{display:flex;border:1.5px solid var(--ink);border-radius:7px;overflow:hidden}
+.seg button{flex:1;appearance:none;border:none;background:#fff;cursor:pointer;font-family:var(--disp);
+  font-weight:600;font-size:.84rem;padding:8px 4px;color:var(--ink);border-right:1.5px solid var(--ink)}
+.seg button:last-child{border-right:none}
+.seg button[aria-pressed="true"]{background:var(--ink);color:#fff}
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:30px;background:none;cursor:pointer}
+input[type=range]::-webkit-slider-runnable-track{height:10px;border-radius:5px;border:1px solid var(--ink-soft);background:#d7e2ea}
+input[type=range]::-moz-range-track{height:10px;border-radius:5px;border:1px solid var(--ink-soft);background:#d7e2ea}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;margin-top:-7px;border-radius:50%;background:#fff;border:3px solid var(--ink)}
+input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;background:#fff;border:3px solid var(--ink)}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:10px;margin-top:12px}
+.tile{border:1px solid var(--line);border-radius:8px;padding:9px 10px;background:#fbfdfe}
+.tile .k{font-family:var(--mono);font-size:.58rem;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-soft)}
+.tile .v{font-family:var(--mono);font-size:1.15rem;font-weight:600;margin-top:2px;font-variant-numeric:tabular-nums}
+.tile .v small{font-size:.7rem;font-weight:400;color:var(--ink-soft)}
+#floorSvg{width:100%;height:auto;display:block;background:#16232f;border-radius:10px}
+.sim-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;align-items:center}
+.sim-stat{font-family:var(--mono);font-size:.7rem;color:var(--ink-soft);margin-left:auto}
+.policy-note{font-size:.74rem;line-height:1.5;color:var(--ink-soft);margin-top:8px}
+.policy-note strong{color:var(--amber)}
+
+/* training tab */
+.train-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:920px){.train-grid{grid-template-columns:1fr}}
+#trainSvg{width:100%;height:auto;display:block;background:#16232f;border-radius:10px}
+.chart-card svg.chart{width:100%;height:auto;display:block}
+.chart-note{font-size:.74rem;color:var(--ink-soft);margin-top:8px;line-height:1.5}
+.train-stats{display:flex;gap:14px;flex-wrap:wrap;font-family:var(--mono);font-size:.7rem;color:var(--ink-soft);margin-top:8px}
+
+/* benchmark tab */
+table{width:100%;border-collapse:collapse;font-size:.78rem}
+th,td{border:1px solid var(--line);padding:6px 9px;text-align:left;font-variant-numeric:tabular-nums}
+th{background:#f2f6f9;font-family:var(--mono);font-size:.62rem;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-soft)}
+td.num{font-family:var(--mono);text-align:right}
+td.best{background:#e2f2e9;font-weight:600}
+.bench-grid{display:grid;grid-template-columns:1fr;gap:16px}
+#benchBars{width:100%;height:auto;display:block}
+
+.about p{font-size:.86rem;line-height:1.65;margin-bottom:12px;max-width:76ch}
+.about code{font-family:var(--mono);font-size:.8em;background:#eef3f7;padding:1px 5px;border-radius:4px}
+footer{text-align:center;font-family:var(--mono);font-size:.64rem;color:var(--ink-soft);padding:18px 12px 30px;letter-spacing:.04em}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>MADRL Warehouse Lab <span class="id">· sustainable AGV fleet</span></h1>
+  <span class="sub">Automated robot-assisted sustainable warehouse via multi-agent deep RL · TRL 4–6 demonstrator</span>
+</header>
+
+<nav class="tabs" role="tablist">
+  <button role="tab" aria-selected="true" data-tab="floor">Warehouse floor</button>
+  <button role="tab" aria-selected="false" data-tab="train">Training lab</button>
+  <button role="tab" aria-selected="false" data-tab="bench">Benchmark</button>
+  <button role="tab" aria-selected="false" data-tab="about">About &amp; methods</button>
+</nav>
+
+<main>
+
+<!-- ================= FLOOR ================= -->
+<section class="tabpane active" id="pane-floor">
+  <div class="floor-grid">
+    <div class="card">
+      <h2>Fleet configuration</h2>
+      <div class="ctl-group">
+        <span class="ctl-label">Coordination algorithm</span>
+        <select id="algSel">
+          <option value="none">No coordination (independent A*)</option>
+          <option value="resv">Centralised reservation planner</option>
+          <option value="madrl" selected>MADRL local policy (IQL) + A* routes</option>
+        </select>
+        <p class="policy-note" id="polNote"></p>
+      </div>
+      <div class="ctl-group">
+        <span class="ctl-label">AGV fleet size</span>
+        <div class="seg" id="fleetSeg">
+          <button data-n="3">3</button><button data-n="5" aria-pressed="true">5</button>
+          <button data-n="7">7</button><button data-n="9">9</button>
+        </div>
+      </div>
+      <div class="ctl-group">
+        <span class="ctl-label">Order queue</span>
+        <input type="number" id="nTasks" min="10" max="80" value="30">
+      </div>
+      <div class="ctl-group">
+        <span class="ctl-label">Simulation speed</span>
+        <input type="range" id="spdSlider" min="1" max="30" value="8" aria-label="Simulation speed, ticks per second">
+      </div>
+      <div class="tiles">
+        <div class="tile"><div class="k">Orders done</div><div class="v"><span id="kTasks">0</span><small>/30</small></div></div>
+        <div class="tile"><div class="k">Makespan</div><div class="v"><span id="kTime">0</span><small> s</small></div></div>
+        <div class="tile"><div class="k">Throughput</div><div class="v"><span id="kThru">0</span><small> /min</small></div></div>
+        <div class="tile"><div class="k">Conflicts</div><div class="v" id="kConf">0</div></div>
+        <div class="tile"><div class="k">Energy</div><div class="v"><span id="kEnergy">0</span><small> Wh</small></div></div>
+        <div class="tile"><div class="k">Energy / order</div><div class="v"><span id="kEpt">—</span><small> Wh</small></div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Floor — 22×13 grid <span class="badge info" id="floorBadge">idle</span></h2>
+      <svg id="floorSvg" viewBox="0 0 748 442" role="img" aria-label="Animated warehouse grid with shelves, picking stations, chargers and AGVs"></svg>
+      <div class="sim-row">
+        <button class="btn amber" id="btnFloorRun">Run shift</button>
+        <button class="btn" id="btnFloorReset">Reset</button>
+        <span class="sim-stat" id="floorStat">ready</span>
+      </div>
+      <div class="policy-note">■ shelves &nbsp;● picking stations (bottom) &nbsp;⚡ chargers (left) — AGVs recharge below 25%. Conflicts flash red; the KPI counts simultaneous same-cell claims.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= TRAINING ================= -->
+<section class="tabpane" id="pane-train">
+  <div class="train-grid">
+    <div class="card">
+      <h2>Multi-agent Q-learning arena <span class="badge warn" id="trainBadge">untrained</span></h2>
+      <svg id="trainSvg" viewBox="0 0 480 360"></svg>
+      <div class="sim-row">
+        <button class="btn primary" id="btnTrain">Train 400 episodes</button>
+        <button class="btn" id="btnTrainWatch">Watch policy</button>
+        <button class="btn amber" id="btnDeploy" disabled>Deploy to warehouse</button>
+      </div>
+      <div class="train-stats">
+        <span>episodes: <b id="tEp">0</b></span>
+        <span>ε: <b id="tEps">1.00</b></span>
+        <span>mean return (last 50): <b id="tRet">—</b></span>
+        <span>Q-table: 144 states × 5 actions</span>
+      </div>
+      <p class="chart-note">Three agents learn a shared local policy by independent Q-learning. State = direction to next waypoint (9) × occupancy of the four neighbour cells (16); actions = stay/N/E/S/W. Reward: +1 progress, −1 conflict, −0.05 per step, +10 goal. Training runs genuinely in your browser — nothing is pre-baked.</p>
+    </div>
+    <div class="card chart-card">
+      <h2>Learning curves</h2>
+      <svg class="chart" id="chartRet" viewBox="0 0 520 300"></svg>
+      <svg class="chart" id="chartConf" viewBox="0 0 520 260" style="margin-top:10px"></svg>
+      <p class="chart-note">Top: mean episode return (50-episode moving average) against a frozen random policy baseline. Bottom: conflicts per episode. Deploying copies the learned Q-table into the warehouse floor's MADRL mode.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ================= BENCHMARK ================= -->
+<section class="tabpane" id="pane-bench">
+  <div class="bench-grid">
+    <div class="card">
+      <h2>Headless benchmark — 3 seeds × 3 algorithms, same order list</h2>
+      <div class="sim-row" style="margin:0 0 12px">
+        <button class="btn primary" id="btnBench">Run benchmark</button>
+        <span class="sim-stat" id="benchStat">30 orders · 5 AGVs · identical seeds per algorithm</span>
+      </div>
+      <table id="benchTable">
+        <thead><tr>
+          <th>Algorithm</th><th>Makespan (s)</th><th>Throughput (orders/min)</th>
+          <th>Conflicts</th><th>Energy (Wh)</th><th>Energy / order (Wh)</th>
+        </tr></thead>
+        <tbody><tr><td colspan="6" style="text-align:center;color:var(--ink-soft)">run the benchmark to populate</td></tr></tbody>
+      </table>
+      <svg id="benchBars" viewBox="0 0 900 300" style="margin-top:14px"></svg>
+      <p class="chart-note">All algorithms consume the identical order list and start positions per seed (paired comparison). Best value per column is highlighted. The MADRL row uses whatever policy is currently deployed — train it first in the Training lab, otherwise a quick 200-episode policy is auto-trained in the background the first time it is needed.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ================= ABOUT ================= -->
+<section class="tabpane" id="pane-about">
+  <div class="card about">
+    <h2>What this app shows</h2>
+    <p>This is an interactive companion for the proposal <strong>"Development of an automated robot-assisted sustainable warehouse system through multi-agent deep reinforcement learning algorithms"</strong> (priority area: Manufacturing; TRL 4–6). It demonstrates the proposal's core loop — multiple AGVs learning to coordinate in a shared warehouse — directly in the browser, with the performance indicators named in the proposal: task completion time, storage/retrieval throughput, coordination conflicts, and (for the sustainability objective) energy per order.</p>
+    <p><strong>Warehouse floor.</strong> A 22×13 grid warehouse with shelf blocks, four picking stations and three chargers. Each order is a retrieval: an AGV travels to a shelf face, lifts the pod, delivers to a station, and returns the pod. Three coordination schemes are selectable: (1) independent A* with no coordination — agents plan as if alone and simply wait when blocked; (2) a centralised reservation planner that assigns next-cell reservations by priority, the classical engineered baseline; and (3) the MADRL mode, where A* provides the global route and a <em>learned</em> local policy decides each step from the waypoint direction and neighbour occupancy — the planner–learner hybrid used in recent multi-agent warehouse literature. AGVs consume energy per move and idle tick, and divert to chargers below 25% battery, so congestion shows up directly in the energy KPIs.</p>
+    <p><strong>Training lab.</strong> The MADRL policy is trained live by independent Q-learning (IQL) with a shared tabular Q-function over a compact state (9 waypoint directions × 16 neighbour-occupancy patterns) and 5 actions. Three agents train on a small arena with crossing goals that forces conflicts; learning curves show the mean return rising above the frozen random baseline and conflicts per episode falling. One click deploys the learned table into the floor simulation and the benchmark.</p>
+    <p><strong>Benchmark.</strong> A paired, headless comparison: the same seeded order lists are replayed under all three algorithms, reporting makespan, throughput, conflicts, and energy per order — the exact evaluation design proposed for the simulation study, in miniature.</p>
+    <p><strong>Honest scope.</strong> This is a teaching-scale demonstrator: tabular IQL stands in for deep MADRL (the state is engineered small so it trains in seconds in a browser; the proposal's CTDE/actor–critic and GNN-based methods replace the table with neural networks at scale), the grid dynamics are unit-time and deterministic, and energy figures use nominal per-move costs rather than a measured AGV power model. The structure — shared environment, decentralised execution, paired benchmarking on completion time, collisions and energy — mirrors the proposal's methodology and is intended for demonstrations, teaching, and stakeholder communication.</p>
+  </div>
+</section>
+
+</main>
+
+<footer>MADRL Warehouse Lab · multi-agent RL trains in your browser · installable PWA · works offline</footer>
+<script>
+"use strict";
+/* ================= tabs ================= */
+document.querySelectorAll("nav.tabs button").forEach(b=>{
+  b.addEventListener("click",()=>{
+    document.querySelectorAll("nav.tabs button").forEach(x=>x.setAttribute("aria-selected","false"));
+    b.setAttribute("aria-selected","true");
+    document.querySelectorAll(".tabpane").forEach(p=>p.classList.remove("active"));
+    document.getElementById("pane-"+b.dataset.tab).classList.add("active");
+  });
+});
+
+/* ================= seeded RNG ================= */
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);
+  t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+
+/* ================= warehouse grid ================= */
+const W=22,H=13,CELL=34;
+const FLOOR=0,SHELF=1,STATION=2,CHARGER=3;
+function buildGrid(){
+  const g=Array.from({length:H},()=>Array(W).fill(FLOOR));
+  for(const bx of [3,7,11,15,19]) for(const dx of [0,1]) for(let y=2;y<=9;y++) g[y][bx+dx]=SHELF;
+  for(const sx of [5,9,13,17]) g[12][sx]=STATION;
+  for(const cy of [3,6,9]) g[cy][0]=CHARGER;
+  return g;
+}
+const GRID=buildGrid();
+const passable=(x,y)=>x>=0&&x<W&&y>=0&&y<H&&GRID[y][x]!==SHELF;
+const DIRS=[[0,0],[0,-1],[1,0],[0,1],[-1,0]]; // stay,N,E,S,W
+
+function astar(sx,sy,tx,ty,blocked){
+  if(sx===tx&&sy===ty)return[];
+  const key=(x,y)=>y*W+x;
+  const open=[[Math.abs(sx-tx)+Math.abs(sy-ty),0,sx,sy]];
+  const came=new Map(),gsc=new Map([[key(sx,sy),0]]);
+  const blk=blocked||new Set();
+  while(open.length){
+    open.sort((a,b)=>a[0]-b[0]);
+    const [,g,x,y]=open.shift();
+    if(x===tx&&y===ty){
+      const path=[];let k=key(tx,ty);
+      while(came.has(k)){path.push([k%W,(k/W)|0]);k=came.get(k);}
+      return path.reverse();
+    }
+    for(let d=1;d<5;d++){
+      const nx=x+DIRS[d][0],ny=y+DIRS[d][1];
+      if(!passable(nx,ny))continue;
+      if(blk.has(key(nx,ny))&&!(nx===tx&&ny===ty))continue;
+      const nk=key(nx,ny),ng=g+1;
+      if(ng<(gsc.get(nk)??1e9)){
+        gsc.set(nk,ng);came.set(nk,key(x,y));
+        open.push([ng+Math.abs(nx-tx)+Math.abs(ny-ty),ng,nx,ny]);
+      }
+    }
+  }
+  return null;
+}
+
+/* ================= shared Q-table (MADRL policy) ================= */
+const NS=9*16,NA=5;
+let Q=null, Qdeployed=null;
+function newQ(){return Array.from({length:NS},()=>new Float32Array(NA));}
+function stateOf(dx,dy,occ){return ((Math.sign(dx)+1)*3+(Math.sign(dy)+1))*16+occ;}
+function occOf(x,y,isBlockedFn){
+  let o=0;
+  for(let d=1;d<5;d++){const nx=x+DIRS[d][0],ny=y+DIRS[d][1];
+    if(isBlockedFn(nx,ny))o|=(1<<(d-1));}
+  return o;
+}
+function greedyA(q,s,rng){
+  let best=0,bv=-1e9,ties=[];
+  for(let a=0;a<NA;a++){const v=q[s][a];
+    if(v>bv+1e-9){bv=v;ties=[a];}else if(Math.abs(v-bv)<=1e-9)ties.push(a);}
+  return ties[Math.floor((rng?rng():Math.random())*ties.length)]??best;
+}
+
+/* ================= warehouse simulation engine ================= */
+function makeSim(alg,nAgents,nTasks,seed,qtable){
+  const rng=mulberry32(seed);
+  // order list: shelf face pick cell + station
+  const shelfCells=[];
+  for(let y=0;y<H;y++)for(let x=0;x<W;x++)if(GRID[y][x]===SHELF)shelfCells.push([x,y]);
+  const stations=[];for(let x=0;x<W;x++)if(GRID[12][x]===STATION)stations.push([x,12]);
+  const chargers=[];for(let y=0;y<H;y++)if(GRID[y][0]===CHARGER)chargers.push([0,y]);
+  const tasks=[];
+  for(let i=0;i<nTasks;i++){
+    const [sxx,syy]=shelfCells[(rng()*shelfCells.length)|0];
+    const adj=[[sxx-1,syy],[sxx+1,syy]].filter(([x,y])=>passable(x,y)&&GRID[y][x]===FLOOR);
+    const pick=adj[(rng()*adj.length)|0];
+    tasks.push({pick,station:stations[(rng()*stations.length)|0],state:"queued"});
+  }
+  const agents=[];
+  const startXs=[2,6,10,14,18,21,1,13,9];
+  for(let i=0;i<nAgents;i++){
+    agents.push({id:i,x:startXs[i],y:11,path:[],goal:null,task:null,phase:"idle",hold:0,
+                 batt:100,moves:0,idles:0,blockedCt:0});
+  }
+  const S={alg,rng,tasks,agents,ticks:0,conflicts:0,energyWh:0,done:0,nTasks,
+           flash:[],qtable:qtable||Qdeployed||null,finished:false,chargers};
+
+  function isAgentAt(x,y,self){return agents.some(a=>a!==self&&a.x===x&&a.y===y);}
+
+  function assign(a){
+    const t=tasks.find(t=>t.state==="queued");
+    if(!t)return false;
+    t.state="active";a.task=t;a.phase="toPick";
+    a.goal=[t.pick[0],t.pick[1]];
+    a.path=astar(a.x,a.y,t.pick[0],t.pick[1])||[];
+    return true;
+  }
+  function gotoCharge(a){
+    let best=null,bd=1e9;
+    for(const c of chargers){const d=Math.abs(a.x-c[0])+Math.abs(a.y-c[1]);
+      if(d<bd){bd=d;best=c;}}
+    a.phase="toCharge";a.goal=[best[0],best[1]];
+    a.path=astar(a.x,a.y,best[0],best[1])||[];
+  }
+
+  S.step=function(){
+    if(S.finished)return;
+    S.flash=[];
+    const props=new Map(); // agent -> [nx,ny]
+    for(const a of agents){
+      // phase management
+      if(a.hold>0){props.set(a,[a.x,a.y]);continue;}
+      if(a.phase==="idle"){
+        if(a.batt<25){gotoCharge(a);}
+        else if(!assign(a)){props.set(a,[a.x,a.y]);continue;}
+      }
+      if(a.phase==="charge"){
+        a.batt=Math.min(100,a.batt+2.5);
+        if(a.batt>=95){a.phase="idle";}
+        props.set(a,[a.x,a.y]);continue;
+      }
+      if(!a.path.length){props.set(a,[a.x,a.y]);continue;}
+      const [nx,ny]=a.path[0];
+      if(S.alg==="madrl"&&S.qtable){
+        const blockedFn=(x,y)=>!passable(x,y)||isAgentAt(x,y,a);
+        const s=stateOf(nx-a.x,ny-a.y,occOf(a.x,a.y,blockedFn));
+        const act=greedyA(S.qtable,s,rng);
+        const tx=a.x+DIRS[act][0],ty=a.y+DIRS[act][1];
+        props.set(a,passable(tx,ty)?[tx,ty]:[a.x,a.y]);
+      }else{
+        props.set(a,[nx,ny]);
+      }
+    }
+    // conflict counting: same-cell claims + swaps
+    const claims=new Map();
+    for(const [a,[x,y]] of props){
+      if(x===a.x&&y===a.y)continue;
+      const k=y*W+x;
+      claims.set(k,(claims.get(k)||[]).concat(a));
+    }
+    for(const [k,list] of claims){
+      if(list.length>1){S.conflicts+=list.length-1;S.flash.push([k%W,(k/W)|0]);}
+    }
+    for(const [a,[x,y]] of props){
+      for(const [b,[bx,by]] of props){
+        if(a.id<b.id&&x===b.x&&y===b.y&&bx===a.x&&by===a.y){S.conflicts++;S.flash.push([x,y]);
+          props.set(a,[a.x,a.y]);props.set(b,[b.x,b.y]);}
+      }
+    }
+    // resolution
+    const taken=new Set(agents.map(a=>a.y*W+a.x));
+    const order=[...agents].sort((a,b)=>a.id-b.id);
+    const moved=new Set();
+    if(S.alg==="resv"){
+      // reservation: priority order, replan around occupied when blocked
+      for(const a of order){
+        let [x,y]=props.get(a);
+        const k=y*W+x;
+        const blockedNow=(x!==a.x||y!==a.y)&&(taken.has(k)&&!moved.has(k));
+        if(blockedNow||[...props.entries()].some(([b,[bx,by]])=>b!==a&&b.id<a.id&&bx===x&&by===y)){
+          const occ=new Set(agents.filter(b=>b!==a).map(b=>b.y*W+b.x));
+          const goal=a.path[a.path.length-1];
+          const alt=goal?astar(a.x,a.y,goal[0],goal[1],occ):null;
+          if(alt&&alt.length){a.path=alt;[x,y]=alt[0];}
+          else {x=a.x;y=a.y;}
+        }
+        commitMove(a,x,y,taken,moved);
+      }
+    }else{
+      for(const a of order){
+        let [x,y]=props.get(a);
+        const k=y*W+x;
+        if((x!==a.x||y!==a.y)&&taken.has(k)){ x=a.x;y=a.y; } // occupied: wait
+        // duplicate claims: only lowest id moves
+        for(const [b,[bx,by]] of props){
+          if(b.id<a.id&&bx===x&&by===y&&(x!==a.x||y!==a.y)){x=a.x;y=a.y;break;}
+        }
+        commitMove(a,x,y,taken,moved);
+      }
+    }
+    // arrivals & holds & energy
+    for(const a of agents){
+      if(a.hold>0){a.hold--;
+        if(a.hold===0)advancePhase(a);
+        continue;
+      }
+      if(a.goal&&a.x===a.goal[0]&&a.y===a.goal[1]){a.path=[];a.goal=null;arrive(a);continue;}
+      // deadlock escape: blocked too long -> replan around currently occupied cells
+      if(a.blockedCt>8&&a.goal){
+        const occ=new Set(agents.filter(b=>b!==a).map(b=>b.y*W+b.x));
+        const alt=astar(a.x,a.y,a.goal[0],a.goal[1],occ);
+        if(alt)a.path=alt;
+        a.blockedCt=0;
+      }
+    }
+    S.ticks++;
+    S.energyWh=+(agents.reduce((e,a)=>e+a.moves*2+a.idles*0.1,0)).toFixed(1);
+    if(S.done>=S.nTasks&&agents.every(a=>a.phase==="idle"||a.phase==="charge")){S.finished=true;}
+  };
+  function commitMove(a,x,y,taken,moved){
+    if(x===a.x&&y===a.y){a.idles++;a.batt=Math.max(0,a.batt-0.03);
+      if(a.goal&&a.path.length)a.blockedCt++;
+      return;}
+    a.blockedCt=0;
+    taken.delete(a.y*W+a.x);
+    a.x=x;a.y=y;taken.add(y*W+x);moved.add(y*W+x);
+    a.moves++;a.batt=Math.max(0,a.batt-0.5);
+    if(a.path.length&&a.path[0][0]===x&&a.path[0][1]===y)a.path.shift();
+    else if(a.goal){a.path=astar(x,y,a.goal[0],a.goal[1])||[];}
+  }
+  function arrive(a){
+    if(a.phase==="toPick"){a.phase="lift";a.hold=2;}
+    else if(a.phase==="toStation"){a.phase="drop";a.hold=2;}
+    else if(a.phase==="toCharge"){a.phase="charge";}
+  }
+  function advancePhase(a){
+    if(a.phase==="lift"){
+      a.phase="toStation";
+      a.goal=[a.task.station[0],a.task.station[1]];
+      a.path=astar(a.x,a.y,a.task.station[0],a.task.station[1])||[];
+    }else if(a.phase==="drop"){
+      a.task.state="done";S.done++;a.task=null;a.phase="idle";
+    }
+  }
+  return S;
+}
+
+/* ================= floor rendering & control ================= */
+const floorSvg=document.getElementById("floorSvg");
+let floorSim=null,floorTimer=null;
+const ALG_NOTES={
+  none:"Each AGV plans A* as if alone and simply waits when the next cell is occupied. Expect queueing and deadlock-style stalls at aisle crossings.",
+  resv:"A central planner grants next-cell reservations by priority and re-routes blocked AGVs around occupied cells — the classical engineered baseline.",
+  madrl:"A* supplies the global route; a <strong>learned</strong> tabular IQL policy chooses each local step from the waypoint direction and neighbour occupancy. Train and deploy it in the Training lab (an auto-quick-trained table is used until then)."
+};
+function polNote(){document.getElementById("polNote").innerHTML=ALG_NOTES[document.getElementById("algSel").value];}
+document.getElementById("algSel").addEventListener("change",()=>{polNote();floorReset();});
+polNote();
+
+let fleetN=5;
+document.querySelectorAll("#fleetSeg button").forEach(b=>b.addEventListener("click",()=>{
+  document.querySelectorAll("#fleetSeg button").forEach(x=>x.removeAttribute("aria-pressed"));
+  b.setAttribute("aria-pressed","true");fleetN=+b.dataset.n;floorReset();
+}));
+
+function renderFloor(){
+  const S=floorSim,e=[];
+  for(let y=0;y<H;y++)for(let x=0;x<W;x++){
+    const t=GRID[y][x],px=x*CELL,py=y*CELL;
+    if(t===SHELF)e.push(`<rect x="${px+2}" y="${py+2}" width="${CELL-4}" height="${CELL-4}" rx="3" fill="#8a6a3c" stroke="#6b5230"/>`);
+    else if(t===STATION)e.push(`<circle cx="${px+CELL/2}" cy="${py+CELL/2}" r="11" fill="#c96a10" stroke="#a85708" stroke-width="2"/><text x="${px+CELL/2}" y="${py+CELL/2+4}" text-anchor="middle" font-size="11" fill="#fff" font-family="IBM Plex Mono">P</text>`);
+    else if(t===CHARGER)e.push(`<rect x="${px+4}" y="${py+4}" width="${CELL-8}" height="${CELL-8}" rx="5" fill="#5b3f8f"/><text x="${px+CELL/2}" y="${py+CELL/2+5}" text-anchor="middle" font-size="14" fill="#fff">⚡</text>`);
+    else e.push(`<rect x="${px}" y="${py}" width="${CELL}" height="${CELL}" fill="none" stroke="rgba(255,255,255,.05)"/>`);
+  }
+  for(const [fx,fy] of S.flash)
+    e.push(`<rect x="${fx*CELL+1}" y="${fy*CELL+1}" width="${CELL-2}" height="${CELL-2}" rx="4" fill="none" stroke="#e05252" stroke-width="3"/>`);
+  for(const t of S.tasks){
+    if(t.state==="queued")e.push(`<circle cx="${t.pick[0]*CELL+CELL/2}" cy="${t.pick[1]*CELL+CELL/2}" r="4" fill="#e5aa63" opacity="0.8"/>`);
+  }
+  for(const a of S.agents){
+    const px=a.x*CELL,py=a.y*CELL;
+    const col=a.phase==="charge"?"#5b3f8f":"#0e7ab8";
+    e.push(`<rect x="${px+4}" y="${py+4}" width="${CELL-8}" height="${CELL-8}" rx="6" fill="${col}" stroke="#0d1620" stroke-width="2"/>`);
+    if(a.phase==="toStation"||a.phase==="drop")
+      e.push(`<rect x="${px+9}" y="${py-2}" width="${CELL-18}" height="9" rx="2" fill="#8a6a3c" stroke="#6b5230"/>`);
+    e.push(`<text x="${px+CELL/2}" y="${py+CELL/2+4}" text-anchor="middle" font-size="12" font-weight="600" fill="#fff" font-family="IBM Plex Mono">${a.id+1}</text>`);
+    e.push(`<rect x="${px+6}" y="${py+CELL-8}" width="${(CELL-12)*a.batt/100}" height="3" rx="1.5" fill="${a.batt<25?'#e05252':'#6fbf8a'}"/>`);
+  }
+  floorSvg.innerHTML=e.join("");
+  document.getElementById("kTasks").innerHTML=S.done;
+  document.querySelector("#kTasks+small").textContent="/"+S.nTasks;
+  document.getElementById("kTime").textContent=S.ticks;
+  document.getElementById("kThru").textContent=S.ticks?((S.done/S.ticks)*60).toFixed(1):"0";
+  document.getElementById("kConf").textContent=S.conflicts;
+  document.getElementById("kEnergy").textContent=S.energyWh.toFixed(0);
+  document.getElementById("kEpt").textContent=S.done?(S.energyWh/S.done).toFixed(1):"—";
+}
+function ensureQuickPolicy(){
+  if(!Qdeployed){ Qdeployed=trainIQL(200,null).Q;
+    document.getElementById("floorBadge").textContent="quick-trained policy";
+  }
+}
+function floorReset(){
+  if(floorTimer){clearInterval(floorTimer);floorTimer=null;}
+  const alg=document.getElementById("algSel").value;
+  if(alg==="madrl")ensureQuickPolicy();
+  floorSim=makeSim(alg,fleetN,+document.getElementById("nTasks").value||30,42,Qdeployed);
+  document.getElementById("btnFloorRun").disabled=false;
+  document.getElementById("floorStat").textContent="ready";
+  document.getElementById("floorBadge").textContent=alg==="madrl"?(QtrainedByUser?"deployed learned policy":"quick-trained policy"):"idle";
+  renderFloor();
+}
+document.getElementById("btnFloorReset").addEventListener("click",floorReset);
+document.getElementById("nTasks").addEventListener("change",floorReset);
+document.getElementById("btnFloorRun").addEventListener("click",()=>{
+  if(floorTimer)return;
+  document.getElementById("floorStat").textContent="running";
+  const loop=()=>{
+    const spd=+document.getElementById("spdSlider").value;
+    for(let i=0;i<Math.max(1,(spd/8)|0);i++)floorSim.step();
+    renderFloor();
+    if(floorSim.finished){
+      clearInterval(floorTimer);floorTimer=null;
+      document.getElementById("floorStat").textContent=`shift complete · makespan ${floorSim.ticks} s`;
+    }
+  };
+  floorTimer=setInterval(loop,1000/8);
+});
+
+/* ================= IQL training arena ================= */
+const AW=10,AH=8;
+const AOBST=new Set([3*AW+3,3*AW+4,4*AW+6,5*AW+6,2*AW+7]);
+const aPass=(x,y)=>x>=0&&x<AW&&y>=0&&y<AH&&!AOBST.has(y*AW+x);
+function aAstar(sx,sy,tx,ty){
+  if(sx===tx&&sy===ty)return[];
+  const key=(x,y)=>y*AW+x;
+  const open=[[0,0,sx,sy]],came=new Map(),g=new Map([[key(sx,sy),0]]);
+  while(open.length){
+    open.sort((a,b)=>a[0]-b[0]);const [,gc,x,y]=open.shift();
+    if(x===tx&&y===ty){const p=[];let k=key(tx,ty);
+      while(came.has(k)){p.push([k%AW,(k/AW)|0]);k=came.get(k);}return p.reverse();}
+    for(let d=1;d<5;d++){const nx=x+DIRS[d][0],ny=y+DIRS[d][1];
+      if(!aPass(nx,ny))continue;
+      const nk=key(nx,ny),ng=gc+1;
+      if(ng<(g.get(nk)??1e9)){g.set(nk,ng);came.set(nk,key(x,y));
+        open.push([ng+Math.abs(nx-tx)+Math.abs(ny-ty),ng,nx,ny]);}}
+  }
+  return null;
+}
+function runEpisode(Qt,eps,rng,learn){
+  // 3 agents, crossing start/goal pairs randomized
+  const spots=[[0,0],[9,0],[0,7],[9,7],[4,0],[5,7],[0,4],[9,3]];
+  const idx=[...spots.keys()];
+  for(let i=idx.length-1;i>0;i--){const j=(rng()*(i+1))|0;[idx[i],idx[j]]=[idx[j],idx[i]];}
+  const ags=[0,1,2].map(i=>({x:spots[idx[i]][0],y:spots[idx[i]][1],
+    gx:spots[idx[i+3]][0],gy:spots[idx[i+3]][1],done:false,path:null}));
+  ags.forEach(a=>a.path=aAstar(a.x,a.y,a.gx,a.gy)||[]);
+  let ret=0,conf=0;
+  for(let step=0;step<80;step++){
+    if(ags.every(a=>a.done))break;
+    const claims=new Map();
+    const acts=[];
+    for(const a of ags){
+      if(a.done){acts.push(null);continue;}
+      if(!a.path.length)a.path=aAstar(a.x,a.y,a.gx,a.gy)||[];
+      const wp=a.path[0]||[a.gx,a.gy];
+      const blockedFn=(x,y)=>!aPass(x,y)||ags.some(b=>b!==a&&!b.done&&b.x===x&&b.y===y);
+      const s=stateOf(wp[0]-a.x,wp[1]-a.y,occOf(a.x,a.y,blockedFn));
+      const act=(rng()<eps)?(rng()*NA)|0:greedyA(Qt,s,rng);
+      acts.push({s,act,wp});
+      const tx=a.x+DIRS[act][0],ty=a.y+DIRS[act][1];
+      const k=ty*AW+tx;
+      if(act!==0)claims.set(k,(claims.get(k)||0)+1);
+    }
+    ags.forEach((a,i)=>{
+      const A=acts[i];if(!A)return;
+      const {s,act,wp}=A;
+      let r=-0.05,tx=a.x+DIRS[act][0],ty=a.y+DIRS[act][1];
+      const d0=Math.abs(a.x-wp[0])+Math.abs(a.y-wp[1]);
+      const occupied=!aPass(tx,ty)||ags.some(b=>b!==a&&!b.done&&b.x===tx&&b.y===ty)
+        ||(act!==0&&claims.get(ty*AW+tx)>1);
+      if(act!==0&&occupied){r-=1;conf++;tx=a.x;ty=a.y;}
+      else{a.x=tx;a.y=ty;
+        const d1=Math.abs(a.x-wp[0])+Math.abs(a.y-wp[1]);
+        if(d1<d0)r+=1;else if(act!==0)r-=0.15;
+        if(a.path.length&&a.x===a.path[0][0]&&a.y===a.path[0][1])a.path.shift();
+      }
+      if(a.x===a.gx&&a.y===a.gy&&!a.done){r+=10;a.done=true;}
+      ret+=r;
+      if(learn){
+        const wp2=a.path[0]||[a.gx,a.gy];
+        const blockedFn2=(x,y)=>!aPass(x,y)||ags.some(b=>b!==a&&!b.done&&b.x===x&&b.y===y);
+        const s2=stateOf(wp2[0]-a.x,wp2[1]-a.y,occOf(a.x,a.y,blockedFn2));
+        const maxq=Math.max(...Qt[s2]);
+        Qt[s][act]+=0.3*(r+(a.done?0:0.95*maxq)-Qt[s][act]);
+      }
+    });
+  }
+  return {ret,conf,ags};
+}
+function trainIQL(nEp,progressCb){
+  const Qt=newQ();const rng=mulberry32(7);
+  const rets=[],confs=[];
+  for(let ep=0;ep<nEp;ep++){
+    const eps=Math.max(0.05,1-ep/(nEp*0.75));
+    const {ret,conf}=runEpisode(Qt,eps,rng,true);
+    rets.push(ret);confs.push(conf);
+    if(progressCb&&ep%10===0)progressCb(ep,rets,confs,eps);
+  }
+  return {Q:Qt,rets,confs};
+}
+
+/* live training UI */
+let QtrainedByUser=false,trainHist={rets:[],confs:[]},randBase=null;
+function randomBaseline(){
+  if(randBase!==null)return randBase;
+  const rng=mulberry32(99);const Qz=newQ();
+  let s=0;for(let i=0;i<50;i++)s+=runEpisode(Qz,1.0,rng,false).ret;
+  randBase=s/50;return randBase;
+}
+document.getElementById("btnTrain").addEventListener("click",()=>{
+  const btn=document.getElementById("btnTrain");btn.disabled=true;
+  if(!Q)Q=newQ();
+  const rng=mulberry32(1234+trainHist.rets.length);
+  const total=400;let ep=0;
+  const chunk=()=>{
+    for(let i=0;i<20&&ep<total;i++,ep++){
+      const eps=Math.max(0.05,1-(trainHist.rets.length)/300);
+      const {ret,conf}=runEpisode(Q,eps,rng,true);
+      trainHist.rets.push(ret);trainHist.confs.push(conf);
+    }
+    updateTrainUI();
+    if(ep<total)setTimeout(chunk,0);
+    else{
+      btn.disabled=false;QtrainedByUser=true;
+      document.getElementById("btnDeploy").disabled=false;
+      document.getElementById("trainBadge").className="badge ok";
+      document.getElementById("trainBadge").textContent="trained · "+trainHist.rets.length+" ep";
+    }
+  };
+  chunk();
+});
+function movAvg(arr,w){return arr.map((_,i)=>{const a=arr.slice(Math.max(0,i-w+1),i+1);
+  return a.reduce((x,y)=>x+y,0)/a.length;});}
+function updateTrainUI(){
+  const n=trainHist.rets.length;
+  document.getElementById("tEp").textContent=n;
+  document.getElementById("tEps").textContent=Math.max(0.05,1-n/300).toFixed(2);
+  const last=trainHist.rets.slice(-50);
+  document.getElementById("tRet").textContent=last.length?(last.reduce((a,b)=>a+b,0)/last.length).toFixed(1):"—";
+  drawCurve("chartRet",movAvg(trainHist.rets,50),"mean episode return",randomBaseline());
+  drawCurve("chartConf",movAvg(trainHist.confs,50),"conflicts / episode",null);
+}
+function drawCurve(id,data,ylab,baseline){
+  const el=document.getElementById(id);
+  const Wc=520,Hc=el.viewBox.baseVal.height,mL=46,mB=32,mT=12,mR=10;
+  if(!data.length){el.innerHTML="";return;}
+  const ymin=Math.min(...data,baseline??1e9),ymax=Math.max(...data,baseline??-1e9);
+  const pad=(ymax-ymin)*0.1||1;
+  const y0=ymin-pad,y1=ymax+pad;
+  const px=i=>mL+(Wc-mL-mR)*i/Math.max(1,data.length-1);
+  const py=v=>Hc-mB-(Hc-mB-mT)*(v-y0)/(y1-y0);
+  let s=`<rect x="${mL}" y="${mT}" width="${Wc-mL-mR}" height="${Hc-mB-mT}" fill="#fbfdfe" stroke="#ccd7e0"/>`;
+  for(let k=0;k<=4;k++){const v=y0+(y1-y0)*k/4;
+    s+=`<line x1="${mL}" x2="${Wc-mR}" y1="${py(v)}" y2="${py(v)}" stroke="#e4ebf1"/><text x="${mL-6}" y="${py(v)+4}" text-anchor="end" font-size="10" font-family="IBM Plex Mono" fill="#3d5165">${v.toFixed(0)}</text>`;}
+  if(baseline!==null&&baseline!==undefined)
+    s+=`<line x1="${mL}" x2="${Wc-mR}" y1="${py(baseline)}" y2="${py(baseline)}" stroke="#b3231f" stroke-dasharray="4 4"/><text x="${Wc-mR-4}" y="${py(baseline)-5}" text-anchor="end" font-size="10" font-family="IBM Plex Mono" fill="#b3231f">random policy</text>`;
+  s+=`<path d="${data.map((v,i)=>`${i?'L':'M'}${px(i).toFixed(1)},${py(v).toFixed(1)}`).join("")}" fill="none" stroke="#0e7ab8" stroke-width="2.4"/>`;
+  s+=`<text x="${(mL+Wc-mR)/2}" y="${Hc-8}" text-anchor="middle" font-size="11" font-family="Space Grotesk" font-weight="600" fill="#10202e">episode — ${ylab}</text>`;
+  el.innerHTML=s;
+}
+
+/* watch one greedy episode */
+let watchTimer=null;
+document.getElementById("btnTrainWatch").addEventListener("click",()=>{
+  if(watchTimer){clearInterval(watchTimer);watchTimer=null;}
+  const Qt=Q||Qdeployed||(Qdeployed=trainIQL(200,null).Q);
+  const rng=mulberry32(Date.now()%100000);
+  // replay an episode capturing frames
+  const frames=[];
+  const spots=[[0,0],[9,0],[0,7],[9,7],[4,0],[5,7],[0,4],[9,3]];
+  const idx=[...spots.keys()];
+  for(let i=idx.length-1;i>0;i--){const j=(rng()*(i+1))|0;[idx[i],idx[j]]=[idx[j],idx[i]];}
+  const ags=[0,1,2].map(i=>({x:spots[idx[i]][0],y:spots[idx[i]][1],
+    gx:spots[idx[i+3]][0],gy:spots[idx[i+3]][1],done:false,path:null}));
+  ags.forEach(a=>a.path=aAstar(a.x,a.y,a.gx,a.gy)||[]);
+  frames.push(ags.map(a=>({...a})));
+  for(let step=0;step<80&&!ags.every(a=>a.done);step++){
+    for(const a of ags){
+      if(a.done)continue;
+      if(!a.path.length)a.path=aAstar(a.x,a.y,a.gx,a.gy)||[];
+      const wp=a.path[0]||[a.gx,a.gy];
+      const blockedFn=(x,y)=>!aPass(x,y)||ags.some(b=>b!==a&&!b.done&&b.x===x&&b.y===y);
+      const s=stateOf(wp[0]-a.x,wp[1]-a.y,occOf(a.x,a.y,blockedFn));
+      const act=greedyA(Qt,s,rng);
+      const tx=a.x+DIRS[act][0],ty=a.y+DIRS[act][1];
+      if(act!==0&&aPass(tx,ty)&&!ags.some(b=>b!==a&&!b.done&&b.x===tx&&b.y===ty)){
+        a.x=tx;a.y=ty;
+        if(a.path.length&&a.x===a.path[0][0]&&a.y===a.path[0][1])a.path.shift();
+      }
+      if(a.x===a.gx&&a.y===a.gy)a.done=true;
+    }
+    frames.push(ags.map(a=>({...a})));
+  }
+  let f=0;
+  watchTimer=setInterval(()=>{
+    renderArena(frames[f]);
+    f++;if(f>=frames.length){clearInterval(watchTimer);watchTimer=null;}
+  },250);
+});
+const AGCOLS=["#0e7ab8","#c96a10","#1e7d4f"];
+function renderArena(ags){
+  const el=document.getElementById("trainSvg"),C=48;
+  const e=[];
+  for(let y=0;y<AH;y++)for(let x=0;x<AW;x++){
+    if(AOBST.has(y*AW+x))e.push(`<rect x="${x*C+2}" y="${y*C+2}" width="${C-4}" height="${C-4}" rx="3" fill="#8a6a3c"/>`);
+    else e.push(`<rect x="${x*C}" y="${y*C}" width="${C}" height="${C}" fill="none" stroke="rgba(255,255,255,.06)"/>`);
+  }
+  ags.forEach((a,i)=>{
+    e.push(`<rect x="${a.gx*C+8}" y="${a.gy*C+8}" width="${C-16}" height="${C-16}" rx="6" fill="none" stroke="${AGCOLS[i]}" stroke-width="3" stroke-dasharray="5 4"/>`);
+    e.push(`<circle cx="${a.x*C+C/2}" cy="${a.y*C+C/2}" r="${C/2-8}" fill="${AGCOLS[i]}" stroke="#0d1620" stroke-width="2"/>`);
+    e.push(`<text x="${a.x*C+C/2}" y="${a.y*C+C/2+5}" text-anchor="middle" font-size="15" font-weight="700" fill="#fff" font-family="IBM Plex Mono">${i+1}</text>`);
+  });
+  el.innerHTML=e.join("");
+}
+renderArena([{x:0,y:0,gx:9,gy:7},{x:9,y:0,gx:0,gy:7},{x:0,y:7,gx:9,gy:3}]);
+
+document.getElementById("btnDeploy").addEventListener("click",()=>{
+  Qdeployed=Q.map(r=>Float32Array.from(r));
+  QtrainedByUser=true;
+  document.getElementById("btnDeploy").textContent="Deployed ✓";
+  setTimeout(()=>document.getElementById("btnDeploy").textContent="Deploy to warehouse",1600);
+  if(document.getElementById("algSel").value==="madrl")floorReset();
+});
+
+/* ================= benchmark ================= */
+document.getElementById("btnBench").addEventListener("click",()=>{
+  document.getElementById("benchStat").textContent="running…";
+  setTimeout(()=>{
+    ensureQuickPolicy();
+    const algs=[["none","No coordination"],["resv","Reservation planner"],["madrl","MADRL (IQL) + A*"]];
+    const seeds=[11,23,37];
+    const rows=[];
+    for(const [alg,label] of algs){
+      let mk=0,cf=0,en=0,tn=0;
+      for(const sd of seeds){
+        const S=makeSim(alg,5,30,sd,Qdeployed);
+        let guard=0;
+        while(!S.finished&&guard++<20000)S.step();
+        mk+=S.ticks;cf+=S.conflicts;en+=S.energyWh;tn+=S.done;
+      }
+      rows.push({label,mk:mk/3,thru:(tn/3)/(mk/3)*60,cf:cf/3,en:en/3,ept:(en/3)/((tn/3)||1)});
+    }
+    const best={mk:Math.min(...rows.map(r=>r.mk)),thru:Math.max(...rows.map(r=>r.thru)),
+      cf:Math.min(...rows.map(r=>r.cf)),en:Math.min(...rows.map(r=>r.en)),ept:Math.min(...rows.map(r=>r.ept))};
+    document.querySelector("#benchTable tbody").innerHTML=rows.map(r=>`
+      <tr><td><strong>${r.label}</strong></td>
+      <td class="num ${r.mk===best.mk?'best':''}">${r.mk.toFixed(0)}</td>
+      <td class="num ${r.thru===best.thru?'best':''}">${r.thru.toFixed(2)}</td>
+      <td class="num ${r.cf===best.cf?'best':''}">${r.cf.toFixed(1)}</td>
+      <td class="num ${r.en===best.en?'best':''}">${r.en.toFixed(0)}</td>
+      <td class="num ${r.ept===best.ept?'best':''}">${r.ept.toFixed(1)}</td></tr>`).join("");
+    // bars: normalized (lower=better) makespan, conflicts, energy/order
+    const el=document.getElementById("benchBars");
+    const groups=[["Makespan",rows.map(r=>r.mk)],["Conflicts",rows.map(r=>r.cf)],["Energy / order",rows.map(r=>r.ept)]];
+    const cols=["#3d5165","#c96a10","#0e7ab8"];
+    let s="";
+    groups.forEach((g,gi)=>{
+      const gx=40+gi*290,mx=Math.max(...g[1],1e-9);
+      s+=`<text x="${gx+105}" y="22" text-anchor="middle" font-family="Space Grotesk" font-weight="700" font-size="14" fill="#10202e">${g[0]}</text>`;
+      g[1].forEach((v,i)=>{
+        const h=200*v/mx;
+        s+=`<rect x="${gx+i*72}" y="${240-h}" width="52" height="${h}" rx="4" fill="${cols[i]}"/>`;
+        s+=`<text x="${gx+i*72+26}" y="${232-h}" text-anchor="middle" font-size="11" font-family="IBM Plex Mono" fill="#10202e">${v.toFixed(v<10?1:0)}</text>`;
+        s+=`<text x="${gx+i*72+26}" y="${258}" text-anchor="middle" font-size="9" font-family="IBM Plex Mono" fill="#3d5165">${["none","resv","MADRL"][i]}</text>`;
+      });
+    });
+    s+=`<text x="450" y="290" text-anchor="middle" font-size="10" font-family="IBM Plex Mono" fill="#3d5165">means over 3 seeds · 30 orders · 5 AGVs · lower is better</text>`;
+    el.innerHTML=s;
+    document.getElementById("benchStat").textContent="done · paired seeds, means of 3 runs";
+  },30);
+});
+
+/* boot */
+floorReset();
+
+/* PWA */
+if("serviceWorker" in navigator){
+  addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}));
+}
+</script>
+</body>
+</html>
